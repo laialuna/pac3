@@ -24,6 +24,9 @@ import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
+import android.view.Display;
+import android.view.Surface;
+import android.view.WindowManager;
 import android.widget.ImageView;
 import android.widget.TextView;
 
@@ -46,6 +49,7 @@ public class MainActivity extends AppCompatActivity
     private float[] mAccelerometerData = new float[3];
     private float[] mMagnetometerData = new float[3];
     private float[] orientationValues = new float[3];
+    private float[] rotationMatrixAdjusted = new float[9];
 
     private ImageView mSpotTop;
     private ImageView mSpotBottom;
@@ -57,13 +61,15 @@ public class MainActivity extends AppCompatActivity
     // non-zero drift.
     private static final float VALUE_DRIFT = 0.05f;
 
+    private Display mDisplay;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // Lock the orientation to portrait (for now)
-        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+        // bloquea la horientación vertical
+        //setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
 
         InitControles();
 
@@ -89,6 +95,10 @@ public class MainActivity extends AppCompatActivity
         mSpotBottom = findViewById(R.id.spot_bottom);
         mSpotLeft = findViewById(R.id.spot_left);
         mSpotRight = findViewById(R.id.spot_right);
+
+        // Obtenemos información de la ventana / pantalla predeterminada
+        WindowManager wm = (WindowManager) getSystemService(WINDOW_SERVICE);
+        if (wm != null) mDisplay = wm.getDefaultDisplay();
     }
 
     /**
@@ -141,13 +151,28 @@ public class MainActivity extends AppCompatActivity
 
         // obtenemos la orientación del dispositivo:
         float[] rotationMatrix = new float[9];
-        boolean rotationOK = SensorManager.getRotationMatrix(rotationMatrix,
-                null, mAccelerometerData, mMagnetometerData);
+        boolean rotationOK = SensorManager.getRotationMatrix(rotationMatrix, null, mAccelerometerData, mMagnetometerData);
+
+        // rotación actual del dispositivo de la pantalla
+        switch (mDisplay.getRotation()) {
+            case Surface.ROTATION_0:
+                rotationMatrixAdjusted = rotationMatrix.clone();
+                break;
+            case Surface.ROTATION_90:
+                SensorManager.remapCoordinateSystem(rotationMatrix, SensorManager.AXIS_Y, SensorManager.AXIS_MINUS_X, rotationMatrixAdjusted);
+                break;
+            case Surface.ROTATION_180:
+                SensorManager.remapCoordinateSystem(rotationMatrix, SensorManager.AXIS_MINUS_X, SensorManager.AXIS_MINUS_Y, rotationMatrixAdjusted);
+                break;
+            case Surface.ROTATION_270:
+                SensorManager.remapCoordinateSystem(rotationMatrix, SensorManager.AXIS_MINUS_Y, SensorManager.AXIS_X, rotationMatrixAdjusted);
+                break;
+        }
 
         // obtenemso los ángulos de orientación de la matriz de rotación
         if (rotationOK) {
             // este método método describen qué tan lejos está orientado o inclinado el dispositivo con respecto al sistema de coordenadas de la Tierra
-            SensorManager.getOrientation(rotationMatrix, orientationValues);
+            SensorManager.getOrientation(rotationMatrixAdjusted, orientationValues);
         }
 
         float azimuth = orientationValues[0];
